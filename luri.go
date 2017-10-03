@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"math/big"
-	"os"
+	// "os"
 )
 
 type Options struct {
@@ -20,9 +20,9 @@ func setOptions(opt *Options) {
 	var verbose bool
 	const (
 		defaultLowerBound = "1"
-		lowerUsage        = "the lower bound `int`"
+		lowerUsage        = "the lower bound `big.Int`"
 		defaultUpperBound = "100"
-		upperUsage        = "the upper bound `int`"
+		upperUsage        = "the upper bound `big.Int`"
 		defaultCount      = 1
 		countUsage        = "size of set"
 		defaultVerbose    = false
@@ -45,19 +45,8 @@ func setOptions(opt *Options) {
 	opt.verbose = verbose
 }
 
-func Usage() {
-	fmt.Fprintln(os.Stderr,
-		`Usage: luri [option]
-    -c, --count    size of set (int)
-    -l, --lower    lower bound (int, inclusive)
-    -u, --upper    upper bound (int, inclusive)
-    -v, --verbose  be verbose
-	`)
-}
-
 func main() {
 	var opt Options
-	flag.Usage = Usage
 	setOptions(&opt)
 	args := flag.Args()
 	if opt.verbose {
