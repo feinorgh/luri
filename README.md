@@ -11,9 +11,10 @@ in the Go core libraries (math/rand, math/big) etcetera.
 Generating 1 000 000 unique integers with an upper bound of 2 000 000
 takes roughly 5.2 s on my 2 GHz Intel Core i7-2630QM.
 
-`bash
+`
 luri -c 1000000 -u 2000000
 `
+
 The equivalent C implementation (with the GMP library) is about 1 s
 quicker on the same processor. Some optimizations could be done
 in the Go implementation, making generation and binary tree searches
