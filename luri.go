@@ -20,94 +20,20 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
+	"github.com/feinorgh/luri/bintree"
 	"math/big"
 	"math/rand"
 	"os"
 	"time"
 )
 
-type Node struct {
-	Number big.Int
-	Left   *Node
-	Right  *Node
-}
-
-type Tree struct {
-	Root *Node
-}
-
 type Options struct {
 	lowerBound *big.Int
 	upperBound *big.Int
 	count      int
 	verbose    bool
-}
-
-func (n *Node) Insert(number *big.Int) error {
-	if n == nil {
-		return errors.New("Cannot insert a value into a nil tree")
-	}
-	c := number.Cmp(&n.Number)
-	switch {
-	case c == 0:
-		return nil
-	case c < 0:
-		if n.Left == nil {
-			n.Left = &Node{Number: *number}
-			return nil
-		}
-		return n.Left.Insert(number)
-	case c > 0:
-		if n.Right == nil {
-			n.Right = &Node{Number: *number}
-			return nil
-		}
-		return n.Right.Insert(number)
-	}
-	return nil
-}
-
-func (n *Node) Find(number *big.Int) bool {
-	if n == nil {
-		return false
-	}
-	c := number.Cmp(&n.Number)
-	switch {
-	case c == 0:
-		return true
-	case c < 0:
-		return n.Left.Find(number)
-	default:
-		return n.Right.Find(number)
-	}
-
-}
-
-func (t *Tree) Insert(number *big.Int) error {
-	if t.Root == nil {
-		t.Root = &Node{Number: *number}
-		return nil
-	}
-	return t.Root.Insert(number)
-}
-
-func (t *Tree) Find(number *big.Int) bool {
-	if t.Root == nil {
-		return false
-	}
-	return t.Root.Find(number)
-}
-
-func (t *Tree) Traverse(n *Node, f func(*Node)) {
-	if n == nil {
-		return
-	}
-	t.Traverse(n.Left, f)
-	f(n)
-	t.Traverse(n.Right, f)
 }
 
 func setOptions(opt *Options) {
@@ -149,7 +75,6 @@ func main() {
 		fmt.Println("Lower Bound: ", opt.lowerBound)
 		fmt.Println("Upper Bound: ", opt.upperBound)
 		fmt.Println("Count: ", opt.count)
-		fmt.Printf("%+v\n", opt)
 	}
 
 	i := new(big.Int)
@@ -158,7 +83,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: the interval (%s) is less than requested size of set (%d)\n", i, opt.count)
 		os.Exit(1)
 	}
-	tree := &Tree{}
+	tree := &bintree.Tree{}
 	for n := 0; n < opt.count; n++ {
 		for {
 			x := new(big.Int)
@@ -170,7 +95,7 @@ func main() {
 			}
 		}
 	}
-	tree.Traverse(tree.Root, func(n *Node) {
+	tree.Traverse(tree.Root, func(n *bintree.Node) {
 		fmt.Println(n.Number.String())
 	})
 }
