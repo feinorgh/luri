@@ -36,6 +36,7 @@ type Options struct {
 	verbose    bool
 }
 
+// setOptions gets the options from the command line environment.
 func setOptions(opt *Options) {
 	var lower, upper string
 	var count int
