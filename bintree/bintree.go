@@ -1,3 +1,4 @@
+// Package bintree provides a data structure and functions for an add-only binary tree for big.Ints.
 package bintree
 
 import (
@@ -15,6 +16,7 @@ type Tree struct {
 	Root *Node
 }
 
+// Insert inserts a number onto a Node that automatically gets placed into the right position in the tree.
 func (n *Node) Insert(number *big.Int) error {
 	if n == nil {
 		return errors.New("Cannot insert a value into a nil tree")
@@ -39,6 +41,7 @@ func (n *Node) Insert(number *big.Int) error {
 	return nil
 }
 
+// Find returns true if `number' is already in the tree, false if it isn't.
 func (n *Node) Find(number *big.Int) bool {
 	if n == nil {
 		return false
@@ -55,6 +58,8 @@ func (n *Node) Find(number *big.Int) bool {
 
 }
 
+// Insert inserts a big.Int into the tree. If the tree does not have a root, this will become the root node.
+// If there is already a root node, it delegates to the Node.Insert function.
 func (t *Tree) Insert(number *big.Int) error {
 	if t.Root == nil {
 		t.Root = &Node{Number: *number}
@@ -63,6 +68,7 @@ func (t *Tree) Insert(number *big.Int) error {
 	return t.Root.Insert(number)
 }
 
+// Find returns true if this number is in the tree, false if it isn't.
 func (t *Tree) Find(number *big.Int) bool {
 	if t.Root == nil {
 		return false
@@ -70,6 +76,7 @@ func (t *Tree) Find(number *big.Int) bool {
 	return t.Root.Find(number)
 }
 
+// Traverse goes through all the nodes in the tree, and visits each node with the function f().
 func (t *Tree) Traverse(n *Node, f func(*Node)) {
 	if n == nil {
 		return
