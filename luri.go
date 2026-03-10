@@ -22,10 +22,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/feinorgh/luri/bintree"
 	"math/big"
 	"math/rand"
 	"os"
+	"sort"
 	"time"
 )
 
@@ -45,7 +45,7 @@ func setOptions(opt *Options) {
 		defaultLowerBound = "1"
 		lowerUsage        = "the lower bound `big.Int`"
 		defaultUpperBound = "100"
-		upperUsage        = "the upper bound `big.Int`"
+		upperUsage        = "the upper bound `big.Int` (inclusive)"
 		defaultCount      = 1
 		countUsage        = "size of set"
 		defaultVerbose    = false
@@ -61,42 +61,96 @@ func setOptions(opt *Options) {
 	flag.BoolVar(&verbose, "v", defaultVerbose, verboseUsage+" (shorthand)")
 	flag.Parse()
 	opt.lowerBound = new(big.Int)
-	opt.lowerBound.SetString(lower, 10)
+	if _, ok := opt.lowerBound.SetString(lower, 10); !ok {
+		fmt.Fprintf(os.Stderr, "Error: invalid lower bound: %q\n", lower)
+		os.Exit(1)
+	}
 	opt.upperBound = new(big.Int)
-	opt.upperBound.SetString(upper, 10)
+	if _, ok := opt.upperBound.SetString(upper, 10); !ok {
+		fmt.Fprintf(os.Stderr, "Error: invalid upper bound: %q\n", upper)
+		os.Exit(1)
+	}
 	opt.count = count
 	opt.verbose = verbose
 }
+
+// maxFisherYates is the maximum range size for which a partial Fisher-Yates
+// shuffle is used. Above this threshold, map-based rejection sampling is used.
+const maxFisherYates = 1_000_000
 
 func main() {
 	var opt Options
 	setOptions(&opt)
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	// rangeSize = upperBound - lowerBound + 1 (upper bound is inclusive)
+	rangeSize := new(big.Int).Sub(opt.upperBound, opt.lowerBound)
+	rangeSize.Add(rangeSize, big.NewInt(1))
+	if rangeSize.Sign() <= 0 {
+		fmt.Fprintf(os.Stderr, "Error: upper bound must be >= lower bound\n")
+		os.Exit(1)
+	}
+	if rangeSize.Cmp(big.NewInt(int64(opt.count))) < 0 {
+		fmt.Fprintf(os.Stderr, "Error: the interval (%s) is less than requested size of set (%d)\n", rangeSize, opt.count)
+		os.Exit(1)
+	}
+
 	if opt.verbose {
 		fmt.Println("Lower Bound: ", opt.lowerBound)
 		fmt.Println("Upper Bound: ", opt.upperBound)
 		fmt.Println("Count: ", opt.count)
 	}
 
-	i := new(big.Int)
-	i.Set(i.Sub(opt.upperBound, opt.lowerBound))
-	if c := i.Cmp(big.NewInt(int64(opt.count))); c < 0 {
-		fmt.Fprintf(os.Stderr, "Error: the interval (%s) is less than requested size of set (%d)\n", i, opt.count)
-		os.Exit(1)
+	var numbers []*big.Int
+	if rangeSize.IsInt64() && rangeSize.Int64() <= maxFisherYates {
+		numbers = fisherYatesSample(opt.lowerBound, rangeSize.Int64(), opt.count, r)
+	} else {
+		numbers = rejectionSample(opt.lowerBound, rangeSize, opt.count, r)
 	}
-	tree := &bintree.Tree{}
-	for n := 0; n < opt.count; n++ {
-		for {
-			x := new(big.Int)
-			x.Rand(r, i)
-			x.Add(x, opt.lowerBound)
-			if tree.Find(x) == false {
-				tree.Insert(x)
-				break
-			}
+
+	sort.Slice(numbers, func(i, j int) bool {
+		return numbers[i].Cmp(numbers[j]) < 0
+	})
+
+	for _, n := range numbers {
+		fmt.Println(n.String())
+	}
+}
+
+// fisherYatesSample performs a partial Fisher-Yates shuffle over the range
+// [lowerBound, lowerBound+rangeSize) and returns count unique values.
+func fisherYatesSample(lowerBound *big.Int, rangeSize int64, count int, r *rand.Rand) []*big.Int {
+	indices := make([]int64, rangeSize)
+	for i := int64(0); i < rangeSize; i++ {
+		indices[i] = i
+	}
+	for i := 0; i < count; i++ {
+		j := int64(i) + r.Int63n(rangeSize-int64(i))
+		indices[i], indices[j] = indices[j], indices[i]
+	}
+	result := make([]*big.Int, count)
+	for i := 0; i < count; i++ {
+		v := new(big.Int).SetInt64(indices[i])
+		v.Add(v, lowerBound)
+		result[i] = v
+	}
+	return result
+}
+
+// rejectionSample uses a hash map to collect count unique random integers from
+// [lowerBound, lowerBound+rangeSize). Suitable for large ranges where
+// count << rangeSize.
+func rejectionSample(lowerBound *big.Int, rangeSize *big.Int, count int, r *rand.Rand) []*big.Int {
+	seen := make(map[string]struct{}, count)
+	result := make([]*big.Int, 0, count)
+	x := new(big.Int)
+	for len(result) < count {
+		x.Rand(r, rangeSize)
+		key := x.String()
+		if _, exists := seen[key]; !exists {
+			seen[key] = struct{}{}
+			result = append(result, new(big.Int).Add(x, lowerBound))
 		}
 	}
-	tree.Traverse(tree.Root, func(n *bintree.Node) {
-		fmt.Println(n.Number.String())
-	})
+	return result
 }

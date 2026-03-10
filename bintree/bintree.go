@@ -1,4 +1,9 @@
-// Package bintree provides a data structure and functions for an add-only binary tree for big.Ints.
+// Package bintree provides an add-only, unbalanced binary search tree for
+// math/big.Int values.
+//
+// All operations (Insert, Find, Traverse) are implemented iteratively to avoid
+// stack overflows on degenerate (fully skewed) trees that can arise when values
+// are inserted in sorted order.
 package bintree
 
 import (
@@ -19,43 +24,45 @@ type Tree struct {
 // Insert inserts a number onto a Node that automatically gets placed into the right position in the tree.
 func (n *Node) Insert(number *big.Int) error {
 	if n == nil {
-		return errors.New("Cannot insert a value into a nil tree")
+		return errors.New("cannot insert into a nil node")
 	}
-	c := number.Cmp(&n.Number)
-	switch {
-	case c == 0:
-		return nil
-	case c < 0:
-		if n.Left == nil {
-			n.Left = &Node{Number: *number}
+	curr := n
+	for {
+		c := number.Cmp(&curr.Number)
+		switch {
+		case c == 0:
 			return nil
+		case c < 0:
+			if curr.Left == nil {
+				curr.Left = &Node{Number: *number}
+				return nil
+			}
+			curr = curr.Left
+		default:
+			if curr.Right == nil {
+				curr.Right = &Node{Number: *number}
+				return nil
+			}
+			curr = curr.Right
 		}
-		return n.Left.Insert(number)
-	case c > 0:
-		if n.Right == nil {
-			n.Right = &Node{Number: *number}
-			return nil
-		}
-		return n.Right.Insert(number)
 	}
-	return nil
 }
 
 // Find returns true if `number' is already in the tree, false if it isn't.
 func (n *Node) Find(number *big.Int) bool {
-	if n == nil {
-		return false
+	curr := n
+	for curr != nil {
+		c := number.Cmp(&curr.Number)
+		switch {
+		case c == 0:
+			return true
+		case c < 0:
+			curr = curr.Left
+		default:
+			curr = curr.Right
+		}
 	}
-	c := number.Cmp(&n.Number)
-	switch {
-	case c == 0:
-		return true
-	case c < 0:
-		return n.Left.Find(number)
-	default:
-		return n.Right.Find(number)
-	}
-
+	return false
 }
 
 // Insert inserts a big.Int into the tree. If the tree does not have a root, this will become the root node.
@@ -76,12 +83,20 @@ func (t *Tree) Find(number *big.Int) bool {
 	return t.Root.Find(number)
 }
 
-// Traverse goes through all the nodes in the tree, and visits each node with the function f().
+// Traverse visits all nodes in the tree in ascending order, calling f() on each.
+// Uses an iterative in-order traversal to avoid stack overflow on large or
+// degenerate (linked-list) trees.
 func (t *Tree) Traverse(n *Node, f func(*Node)) {
-	if n == nil {
-		return
+	stack := make([]*Node, 0)
+	curr := n
+	for curr != nil || len(stack) > 0 {
+		for curr != nil {
+			stack = append(stack, curr)
+			curr = curr.Left
+		}
+		curr = stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		f(curr)
+		curr = curr.Right
 	}
-	t.Traverse(n.Left, f)
-	f(n)
-	t.Traverse(n.Right, f)
 }
