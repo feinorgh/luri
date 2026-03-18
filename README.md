@@ -3,9 +3,9 @@
 **List Unique Random Integers**
 
 `luri` generates a sorted list of unique random integers sampled from an
-inclusive range `[lower, upper]`. Both bounds are `math/big.Int` values, so
-the range can be arbitrarily large — well beyond the limits of a 64-bit
-integer.
+inclusive range `[lower, upper]`. Both bounds are
+[`math/big.Int`](https://pkg.go.dev/math/big) values, so the range can be
+arbitrarily large — well beyond the limits of a 64-bit integer.
 
 ## Algorithm
 
@@ -15,7 +15,8 @@ requested range:
 ### Small ranges (≤ 1 000 000 values) — partial Fisher-Yates shuffle
 
 An index array `[0, 1, …, rangeSize-1]` is allocated once. A partial
-Fisher-Yates shuffle is then performed for exactly `count` steps:
+[Fisher-Yates shuffle](https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle)
+is then performed for exactly `count` steps:
 
 ```
 for i in 0 .. count-1:
@@ -27,25 +28,58 @@ The first `count` elements of the shuffled array, offset by `lowerBound`,
 become the result. This is **O(count)** time with no possibility of
 collision, making it optimal when the range fits comfortably in memory.
 
+The threshold of 1 000 000 is a practical balance: allocating a slice of
+that many `int64` values requires roughly 8 MB of memory, which is
+acceptable on virtually any modern system, while keeping the algorithm
+fast for typical use-cases.
+
 ### Large ranges (> 1 000 000 values) — hash-map rejection sampling
 
 A `map[string]struct{}` tracks already-selected values. Random integers are
-drawn from `[0, rangeSize)` using `(*big.Int).Rand` until `count` distinct
-values have been collected, then each is offset by `lowerBound`.
+drawn from `[0, rangeSize)` using
+[`(*big.Int).Rand`](https://pkg.go.dev/math/big#Int.Rand) until `count`
+distinct values have been collected, then each is offset by `lowerBound`.
 
 This approach handles ranges of arbitrary magnitude (including ranges that
 exceed `int64`) and is efficient when `count` is much smaller than
-`rangeSize` — selection probability of a collision approaches zero in that
-regime, so the expected number of draws is approximately `count`.
+`rangeSize`. For each of the `count` unique values to collect, the expected
+draws required for the k-th value (with k−1 already seen) is
+`rangeSize / (rangeSize − k + 1)`. Summing over all k gives:
+
+```
+E[draws] = Σ_{k=1}^{count} rangeSize/(rangeSize − k + 1)
+         ≈ count + count·(count−1) / (2·rangeSize)
+         ≈ count   (when count << rangeSize)
+```
+
+This is the standard
+[rejection-sampling](https://en.wikipedia.org/wiki/Rejection_sampling)
+argument. When `count` is close to `rangeSize`, the expected draws grow
+significantly and the Fisher-Yates path should be preferred instead, which
+is why the threshold exists.
 
 ### Output
 
 Results are sorted in ascending order before printing, regardless of which
 sampling path was taken.
 
+## Code structure
+
+| Path | Description |
+|------|-------------|
+| `luri.go` | Entry point: flag parsing, algorithm dispatch, sorting, output |
+| `luri_test.go` | Unit tests for `fisherYatesSample` and `rejectionSample` |
+| `bintree/bintree.go` | Add-only, iterative unbalanced [BST](https://en.wikipedia.org/wiki/Binary_search_tree) for `*big.Int` values |
+| `bintree/bintree_test.go` | Unit tests for the `bintree` package |
+
+The `bintree` package provides an iterative (stack-overflow-safe) binary
+search tree keyed on `*big.Int`. All tree operations — `Insert`, `Find`, and
+`Traverse` — are implemented without recursion to handle arbitrarily large or
+degenerate (fully skewed) trees safely.
+
 ## Building
 
-Requires Go 1.18 or later.
+Requires Go 1.21 or later.
 
 ```
 git clone https://github.com/feinorgh/luri
